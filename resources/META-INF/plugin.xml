@@ -1,0 +1,42 @@
+<idea-plugin version="2">
+    <id>com.jucaicat.plugin.intellij.tc_client_generator</id>
+    <name>JCC2.0 Architecture Client Code Generator</name>
+    <version>1.0</version>
+    <vendor email="huangyadong@jucaicat.com" url="http://www.jucaicat.com">聚财猫</vendor>
+
+    <description><![CDATA[
+      本插件用于生成聚财猫2.0架构中,Client部分的内容,包括Proxy&Client.<br>
+    ]]></description>
+
+    <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/build_number_ranges.html for description -->
+    <idea-version since-build="141.0"/>
+
+    <!-- please see http://www.jetbrains.org/intellij/sdk/docs/basics/getting_started/plugin_compatibility.html
+         on how to target different products -->
+    <!-- uncomment to enable plugin in all products
+    <depends>com.intellij.modules.lang</depends>
+    -->
+
+    <extensions defaultExtensionNs="com.intellij">
+        <!-- Add your extensions here -->
+    </extensions>
+
+    <actions>
+        <!-- Add your actions here -->
+        <action id="GenerateClientCode" class="com.jucaicat.plugin.intellij.tc_client_generator.GeneratorAction"
+                text="Generate Client Code"
+                description="Generate JCC 2.0 Tai-chi architecture client code, include proxy &amp; client.">
+            <add-to-group group-id="JavaGenerateGroup1" anchor="first"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="meta j"/>
+        </action>
+    </actions>
+
+    <module-components>
+        <component>
+            <implementation-class>com.jucaicat.plugin.intellij.tc_client_generator.GeneratorComponent
+            </implementation-class>
+        </component>
+    </module-components>
+
+
+</idea-plugin>

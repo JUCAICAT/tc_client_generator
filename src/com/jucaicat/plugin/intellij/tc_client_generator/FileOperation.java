@@ -23,7 +23,6 @@ class FileOperation {
     private PsiJavaFile psiJavaFile;
     private PsiClass psiClass;
 
-
     FileOperation(String groupKey,
                   String commandProperties,
                   String feignClient,
@@ -62,7 +61,8 @@ class FileOperation {
 
     private String getApiShortPath() {
         String fileName = virtualFile.getName();
-        return "api/" + fileName.replace("Controller", "ServiceClient");
+
+        return "api/" + fileName.replace("Controller", "Client");
     }
 
     private String getApiFullPath() {
@@ -72,7 +72,7 @@ class FileOperation {
     private String getProxyShortPath() {
         String fileName = virtualFile.getName();
 
-        return "proxy/" + fileName.replace("Controller", "ServiceProxy");
+        return "proxy/" + fileName.replace("Controller", "Proxy");
     }
 
     private String getProxyFullPath() {
@@ -103,6 +103,8 @@ class FileOperation {
             if (!match.find() &&
                     !st.endsWith("org.slf4j.Logger;") &&
                     !st.endsWith("org.slf4j.LoggerFactory;") &&
+                    !st.endsWith("BaseController;") &&
+                    !st.endsWith("ResultEnum;") &&
                     !st.endsWith("org.springframework.beans.factory.annotation.Autowired;") &&
                     !st.endsWith("org.springframework.web.bind.annotation.RestController;")) {
                 builder.append(st).append("\n");
@@ -125,7 +127,7 @@ class FileOperation {
         }
 
         //Interface
-        String interfaceName = psiClass.getName().replace("Controller", "ServiceClient");
+        String interfaceName = psiClass.getName().replace("Controller", "Client");
         builder.append("public ").append("interface ").append(interfaceName).append(" {").append("\n");
 
         //Annotations & Methods
@@ -161,7 +163,7 @@ class FileOperation {
 
         //import
         String importPackageName = psiJavaFile.getPackageName().replace("service", "client").replace("controller", "api");
-        String importClient = psiClass.getName().replace("Controller", "ServiceClient");
+        String importClient = psiClass.getName().replace("Controller", "Client");
 
         builder.append("import ").append(importPackageName).append(".").append(importClient).append(";\n");
 
@@ -170,7 +172,13 @@ class FileOperation {
         builder.append("\n");
         builder.append("import com.netflix.hystrix.contrib.javanica.annotation.HystrixProperty;");
         builder.append("\n");
+        builder.append("import com.netflix.hystrix.contrib.javanica.command.AsyncResult;");
+        builder.append("\n");
         builder.append("import org.springframework.stereotype.Service;");
+        builder.append("\n");
+        builder.append("import org.springframework.beans.factory.annotation.Autowired;");
+        builder.append("\n");
+        builder.append("import java.util.concurrent.Future;");
         builder.append("\n");
 
         PsiImportStatement[] statements = psiJavaFile.getImportList().getImportStatements();
@@ -186,6 +194,8 @@ class FileOperation {
                     !st.contains("org.springframework.web.bind.annotation") &&
                     !st.contains("org.springframework.http.MediaType") &&
                     !st.contains("org.slf4j.Logger") &&
+                    !st.endsWith("BaseController;") &&
+                    !st.endsWith("ResultEnum;") &&
                     !st.contains("org.slf4j.LoggerFactory")) {
 
                 builder.append(st).append("\n");
@@ -206,13 +216,13 @@ class FileOperation {
         builder.append("@Service\n");
 
         //Class
-        String className = psiClass.getName().replace("Controller", "ServiceProxy");
+        String className = psiClass.getName().replace("Controller", "Proxy");
         builder.append("public ").append("class ").append(className).append(" {").append("\n");
 
         //@Autowired
         builder.append("\t@Autowired\n");
         builder.append("\tprivate ")
-                .append(psiClass.getName().replace("Controller", "ServiceClient"))
+                .append(psiClass.getName().replace("Controller", "Client"))
                 .append(" ")
                 .append("client;\n");
 
@@ -221,19 +231,15 @@ class FileOperation {
 
         for (PsiMethod m : methods) {
             //方法名称
+            //同步方法名称
             String methodName = m.getName();
+            //同步fallback方法名称
             String fallbackMethodName = methodName + "FBM";
 
-            builder.append("\n\t@HystrixCommand(groupKey = \"")
-                    .append(groupKey).append("\",\n")
-                    .append("\t\t\tfallbackMethod = \"")
-                    .append(fallbackMethodName)
-                    .append("\",\n")
-                    .append("\t\t\tcommandProperties = {")
-                    .append("\n\t\t\t\t")
-                    .append(commandProperties)
-                    .append("\n")
-                    .append("\t\t})\n");
+            //异步方法名称
+            String asyncMethodName = methodName + "Async";
+            //异步fallback方法名称
+            String asyncFallbackMethodName = asyncMethodName + "FBM";
 
             PsiParameter[] params = m.getParameterList().getParameters();
 
@@ -258,11 +264,19 @@ class FileOperation {
                 methodParams.delete(methodParams.length() - 2, methodParams.length());
             }
 
-            /*
-            System.out.println(methodTypeParams);
-            System.out.println(methodParams);
-            */
+            //生成同步方法注解
+            builder.append("\n\t@HystrixCommand(groupKey = \"")
+                    .append(groupKey).append("\",\n")
+                    .append("\t\t\tfallbackMethod = \"")
+                    .append(fallbackMethodName)
+                    .append("\",\n")
+                    .append("\t\t\tcommandProperties = {")
+                    .append("\n\t\t\t\t")
+                    .append(commandProperties)
+                    .append("\n")
+                    .append("\t\t})\n");
 
+            //生成同步方法
             builder.append("\tpublic ");
             builder.append(m.getReturnType().getPresentableText());
             builder.append(" ");
@@ -279,11 +293,67 @@ class FileOperation {
                     .append(");\n")
                     .append("\t}\n\n");
 
-            //生成fallback方法
+            //生成同步fallback方法
             builder.append("\tpublic ");
             builder.append(m.getReturnType().getPresentableText());
             builder.append(" ");
             builder.append(fallbackMethodName);
+            builder.append("(")
+                    .append(methodTypeParams)
+                    .append(")")
+                    .append("{\n")
+                    .append("\t\t")
+                    .append("return null;\n")
+                    .append("\t}\n");
+
+            //生成异步方法注解
+            builder.append("\n\t@HystrixCommand(groupKey = \"")
+                    .append(groupKey).append("\",\n")
+                    .append("\t\t\tfallbackMethod = \"")
+                    .append(asyncFallbackMethodName)
+                    .append("\",\n")
+                    .append("\t\t\tcommandProperties = {")
+                    .append("\n\t\t\t\t")
+                    .append(commandProperties)
+                    .append("\n")
+                    .append("\t\t})\n");
+
+            //生成异步方法
+            builder.append("\tpublic ");
+            builder.append("Future<");
+            builder.append(m.getReturnType().getPresentableText());
+            builder.append(">");
+            builder.append(" ");
+            builder.append(asyncMethodName);
+            builder.append("(")
+                    .append(methodTypeParams)
+                    .append(")")
+                    .append("{\n")
+                    .append("\t\t")
+                    .append("return new AsyncResult<")
+                    .append(m.getReturnType().getPresentableText())
+                    .append(">() {\n" +
+                            "            @Override\n" +
+                            "            public ")
+                    .append(m.getReturnType().getPresentableText())
+                    .append(" invoke() {\n")
+                    .append("\t\t\t\treturn client.")
+                    .append(methodName)
+                    .append("(")
+                    .append(methodParams)
+                    .append(");\n")
+                    .append("\t\t\t}\n")
+                    .append("\t\t};\n")
+                    .append("\t}\n\n");
+
+
+            //生成异步fallback方法
+            builder.append("\tpublic ");
+            builder.append("Future<");
+            builder.append(m.getReturnType().getPresentableText());
+            builder.append(">");
+            builder.append(" ");
+            builder.append(asyncFallbackMethodName);
             builder.append("(")
                     .append(methodTypeParams)
                     .append(")")

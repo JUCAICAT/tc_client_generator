@@ -1,7 +1,7 @@
 <idea-plugin version="2">
     <id>com.jucaicat.plugin.intellij.tc_client_generator</id>
     <name>JCC2.0 Architecture Client Code Generator</name>
-    <version>1.0</version>
+    <version>1.1</version>
     <vendor email="huangyadong@jucaicat.com" url="http://www.jucaicat.com">聚财猫</vendor>
 
     <description><![CDATA[

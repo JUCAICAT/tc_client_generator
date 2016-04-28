@@ -109,8 +109,19 @@ class FileTools {
      */
     static void string2File(String fileName, String content) {
         try {
+            //检查目录
+            String dirPath = fileName.substring(0, fileName.lastIndexOf("/"));
+
+            File writeFile = new File(dirPath);
+            //如果目录不存在,则创建目录;
+            if (!writeFile.exists()) {
+                //mkdirs是创建多级目录,而mkdir是创建单级目录;
+                writeFile.mkdirs();
+            }
+
             //打开一个写文件器，构造函数中的第二个参数true表示以追加形式写文件
             FileWriter writer = new FileWriter(fileName, false);
+
             writer.write(content);
             writer.close();
         } catch (IOException e) {
